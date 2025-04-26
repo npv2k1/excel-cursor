@@ -1,0 +1,76 @@
+on:
+  push:
+    tags:
+      - "v*"
+
+name: Create Release
+
+jobs:
+  create-release:
+    name: Publish Release
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v3
+
+      - name: Pull all submodule
+        run: git submodule update --init --recursive
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v2
+        with:
+          node-version: "16"
+
+      - name: Setup Git
+        run: |
+          git config user.name '${{secrets.MAINTAINER_NAME}}'
+          git config user.email '${{secrets.MAINTAINER_EMAIL}}'
+
+      - name: Update package.json
+        run: |
+          # Extract the version from the git tag (e.g., "v1.0.0")
+          version=$(echo "${{ github.ref }}" | sed -e 's/^refs\/tags\/v//')
+
+          # Update the package.json version using Node.js script
+          node - <<EOF
+          const fs = require('fs');
+          const packageJson = JSON.parse(fs.readFileSync('package.json'));
+          packageJson.version = "$version";
+          fs.writeFileSync('package.json', JSON.stringify(packageJson, null, 2));
+          EOF
+
+      - uses: pnpm/action-setup@v2
+        name: Install pnpm
+        id: pnpm-install
+        with:
+          version: 7
+          run_install: false
+
+      - name: Get pnpm store directory
+        id: pnpm-cache
+        shell: bash
+        run: |
+          echo "STORE_PATH=$(pnpm store path)" >> $GITHUB_OUTPUT
+
+      - uses: actions/cache@v3
+        name: Setup pnpm cache
+        with:
+          path: ${{ steps.pnpm-cache.outputs.STORE_PATH }}
+          key: ${{ runner.os }}-pnpm-store-${{ hashFiles('**/pnpm-lock.yaml') }}
+          restore-keys: |
+            ${{ runner.os }}-pnpm-store-
+
+      - name: Install dependencies
+        run: pnpm install
+
+      - name: Build package
+        run: pnpm run build
+
+      - uses: actions/create-release@v1
+        id: create_release
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        with:
+          tag_name: ${{ github.ref }}
+          release_name: ${{ github.ref }}
+          draft: true

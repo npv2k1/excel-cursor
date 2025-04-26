@@ -1,35 +1,103 @@
 import { stream } from 'exceljs';
-
 import { ExcelCursor } from '../src/index';
 
-async function main() {
-  // construct a streaming XLSX workbook writer with styles and shared strings
+// Basic data input example
+async function basicExample() {
   const options = {
-    filename: './result/streamed-workbook.xlsx',
+    filename: './result/basic-example.xlsx',
     useStyles: true,
     useSharedStrings: true,
   };
   const workbook = new stream.xlsx.WorkbookWriter(options);
+  const cursor = new ExcelCursor(workbook, 'Basic Example');
 
-  const cursor = new ExcelCursor(workbook, 'Sheet1');
-
-  cursor.move('A1').setData('Hello, World!');
-
-  cursor.move('B2').setData('ExcelJS Cursor Example');
-
-  cursor.move('C3').setData('This is a test.');
-
-  for (let i = 0; i < 1000; i++) {
-    cursor
-      .move('A' + (i + 4))
-      .setData('Row ' + (i + 1))
-      .addComment('This is a comment')
-      .nextCol(1)
-      // .setData('Column ' + (i + 1))
-      .setFormula('=1+2');
-  }
+  cursor
+    .move('A1')
+    .setData('Basic Data Input')
+    .nextRow()
+    .setData('Simple text')
+    .nextRow()
+    .setData(42)
+    .nextRow()
+    .setData(new Date());
 
   cursor.commit();
+}
+
+// Formatting example
+async function formattingExample() {
+  const options = {
+    filename: './result/formatting-example.xlsx',
+    useStyles: true,
+    useSharedStrings: true,
+  };
+  const workbook = new stream.xlsx.WorkbookWriter(options);
+  const cursor = new ExcelCursor(workbook, 'Formatting');
+
+  cursor
+    .move('A1')
+    .setData('Formatting Example')
+    .formatCell({
+      font: { bold: true, size: 14 },
+      alignment: { horizontal: 'center' },
+      fill: { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FF90CAF9' } }
+    })
+    .nextRow(2)
+    .setData('Bold Text')
+    .formatCell({ font: { bold: true } })
+    .nextCol()
+    .setData('Italic Text')
+    .formatCell({ font: { italic: true } })
+    .nextCol()
+    .setData('Underline')
+    .formatCell({ font: { underline: true } });
+
+  cursor.commit();
+}
+
+// Formulas and comments example
+async function formulasExample() {
+  const options = {
+    filename: './result/formulas-example.xlsx',
+    useStyles: true,
+    useSharedStrings: true,
+  };
+  const workbook = new stream.xlsx.WorkbookWriter(options);
+  const cursor = new ExcelCursor(workbook, 'Formulas');
+
+  // Set up some numbers
+  cursor
+    .move('A1')
+    .setData('Numbers')
+    .nextRow()
+    .setData(10)
+    .nextRow()
+    .setData(20)
+    .nextRow()
+    .setData(30);
+
+  // Add formulas
+  cursor
+    .move('B1')
+    .setData('Formulas')
+    .nextRow()
+    .setFormula('=A2*2')
+    .addComment('Doubles the value in A2')
+    .nextRow()
+    .setFormula('=SUM(A2:A4)')
+    .addComment('Sums all numbers')
+    .nextRow()
+    .setFormula('=AVERAGE(A2:A4)')
+    .addComment('Calculates average');
+
+  cursor.commit();
+}
+
+// Run all examples
+async function main() {
+  await basicExample();
+  await formattingExample();
+  await formulasExample();
 }
 
 main();

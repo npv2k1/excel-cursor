@@ -1,37 +1,46 @@
 # Excel Cursor
 
-Thư viện TypeScript giúp thao tác với file Excel một cách dễ dàng thông qua API dạng con trỏ (cursor).
+A powerful TypeScript library for easy Excel file manipulation using a cursor-based API. Built on top of ExcelJS, it provides an intuitive interface for navigating and modifying Excel workbooks.
 
-## Cài đặt
+[![npm version](https://badge.fury.io/js/excel-cursor.svg)](https://badge.fury.io/js/excel-cursor)
+[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
+
+## Features
+
+- 🚀 Intuitive cursor-based navigation in Excel files
+- 📝 Easy data reading and writing operations
+- 🎨 Comprehensive cell formatting (fonts, colors, alignment)
+- 🔄 Cell merging and spanning
+- 📊 Row and column management
+- 📑 Multi-worksheet support
+- ➗ Excel formula support
+- 🎯 Conditional formatting
+- 🔍 Type-safe operations
+- 📏 Auto-sizing columns
+- 🛡️ Input validation
+- 💾 Memory-efficient operations
+
+## Installation
 
 ```bash
 npm install excel-cursor
-# hoặc
+# or
 yarn add excel-cursor
+# or
+pnpm add excel-cursor
 ```
 
-## Tính năng
-
-- Di chuyển con trỏ linh hoạt trong file Excel
-- Đọc/ghi dữ liệu vào ô
-- Định dạng ô (font, màu sắc, căn lề)
-- Merge ô
-- Thêm/xóa hàng
-- Chuyển đổi giữa các worksheet
-- Hỗ trợ công thức Excel
-- Định dạng có điều kiện
-
-## Sử dụng
+## Quick Start
 
 ```typescript
 import { Workbook } from 'exceljs';
 import { ExcelCursor } from 'excel-cursor';
 
-// Khởi tạo workbook và cursor
+// Initialize workbook and cursor
 const workbook = new Workbook();
 const cursor = new ExcelCursor(workbook);
 
-// Di chuyển và nhập dữ liệu
+// Navigate and input data
 cursor
   .move('A1')
   .setData('Hello')
@@ -42,57 +51,79 @@ cursor
     alignment: { vertical: 'middle', horizontal: 'center' }
   });
 
-// Lưu file
+// Save the workbook
 await workbook.xlsx.writeFile('output.xlsx');
 ```
 
-## API
+## Documentation
 
-### Di chuyển con trỏ
+For detailed API documentation and examples, please check:
+- [API Documentation](./API.md)
+- [Changelog](./CHANGELOG.md)
 
-- `move(address: string)`: Di chuyển đến địa chỉ ô cụ thể (vd: 'A1')
-- `moveTo(row: number, col: number)`: Di chuyển đến vị trí hàng và cột
-- `nextRow(n = 1)`: Di chuyển xuống n hàng
-- `prevRow(n = 1)`: Di chuyển lên n hàng
-- `nextCol(n = 1)`: Di chuyển sang phải n cột
-- `prevCol(n = 1)`: Di chuyển sang trái n cột
+## Examples
 
-### Thao tác dữ liệu
+### Cell Formatting
 
-- `setData(data: any, address?: string)`: Ghi dữ liệu vào ô hiện tại hoặc ô chỉ định
-- `setFormula(formula: string, address?: string)`: Đặt công thức cho ô
-- `formatCell(format: CellFormat, address?: string)`: Định dạng ô
+```typescript
+cursor
+  .move('A1')
+  .setData('Styled Cell')
+  .formatCell({
+    font: { 
+      bold: true,
+      color: '#FF0000',
+      size: 14
+    },
+    fill: {
+      type: 'pattern',
+      pattern: 'solid',
+      fgColor: '#FFFF00'
+    },
+    border: {
+      top: { style: 'thin', color: '#000000' },
+      bottom: { style: 'thin', color: '#000000' }
+    }
+  });
+```
 
-### Định dạng
+### Cell Merging
 
-- `colSpan(n: number, address?: string)`: Merge n cột từ vị trí hiện tại
-- `rowSpan(n: number, address?: string)`: Merge n hàng từ vị trí hiện tại
-- `setColWidth(width: number, colOrAddress?: number | string)`: Đặt độ rộng cột
-- `setRowHeight(height: number, rowOrAddress?: number | string)`: Đặt chiều cao hàng
+```typescript
+cursor
+  .move('A1')
+  .setData('Merged Cells')
+  .colSpan(3)  // Merge 3 columns
+  .formatCell({
+    alignment: { horizontal: 'center' }
+  });
+```
 
-### Worksheet
+### Working with Multiple Sheets
 
-- `switchSheet(sheetName: string)`: Chuyển sang worksheet khác
-- `createSheet(sheetName: string)`: Tạo worksheet mới
+```typescript
+const cursor = new ExcelCursor(workbook, 'Sheet1');
+// Work with Sheet1
+cursor.move('A1').setData('Sheet 1 Data');
 
-## Đóng góp
+// Create and switch to a new sheet
+const sheet2 = workbook.addWorksheet('Sheet2');
+cursor.switchSheet('Sheet2');
+cursor.move('A1').setData('Sheet 2 Data');
+```
 
-Mọi đóng góp đều được hoan nghênh! Vui lòng:
+## Contributing
 
-1. Fork dự án
-2. Tạo branch cho tính năng (`git checkout -b feature/amazing-feature`)
-3. Commit thay đổi (`git commit -m 'Add some amazing feature'`)
-4. Push lên branch (`git push origin feature/amazing-feature`)
-5. Tạo Pull Request
+Contributions are welcome! Please feel free to submit a Pull Request. For major changes, please open an issue first to discuss what you would like to change.
 
-## Giấy phép
+## License
 
-Dự án này được phân phối dưới giấy phép MIT. Xem file `LICENSE` để biết thêm chi tiết.
+This project is licensed under the MIT License - see the [LICENSE](LICENSE) file for details.
 
-## Tác giả
+## Author
 
-Nguyễn Văn A - [@nguyenvana](https://github.com/nguyenvana)
+Nguyen Van A - [@nguyenvana](https://github.com/nguyenvana)
 
-## Hỗ trợ
+## Support
 
-Nếu bạn gặp vấn đề hoặc có câu hỏi, vui lòng tạo issue trong repository.
+If you encounter any issues or have questions, please create an issue in the repository.

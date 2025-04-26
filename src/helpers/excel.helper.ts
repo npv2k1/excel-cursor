@@ -1,5 +1,3 @@
-
-
 /**
  * Convert column letter (A, B, C...) to number (1, 2, 3...)
  */

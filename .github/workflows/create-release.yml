@@ -17,9 +17,9 @@ jobs:
         run: git submodule update --init --recursive
 
       - name: Setup Node.js
-        uses: actions/setup-node@v2
+        uses: actions/setup-node@v4
         with:
-          node-version: "16"
+          node-version: "20"
 
       - name: Setup Git
         run: |
@@ -39,11 +39,11 @@ jobs:
           fs.writeFileSync('package.json', JSON.stringify(packageJson, null, 2));
           EOF
 
-      - uses: pnpm/action-setup@v2
+      - uses: pnpm/action-setup@v4
         name: Install pnpm
         id: pnpm-install
         with:
-          version: 7
+          version: 18
           run_install: false
 
       - name: Get pnpm store directory

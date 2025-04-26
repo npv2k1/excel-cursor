@@ -1,11 +1,6 @@
 on:
   push:
-    branches: ['master']
-  workflow_dispatch:
-  workflow_run:
-    workflows: ["Sync Submodule"]
-    types:
-      - completed
+    branches: ['main']
 
 name: Test Release
 
@@ -23,7 +18,7 @@ jobs:
       - name: Setup Node.js
         uses: actions/setup-node@v2
         with:
-          node-version: "16"
+          node-version: "18"
 
       - name: Setup Git
         run: |

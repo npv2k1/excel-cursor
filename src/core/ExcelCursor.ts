@@ -1,18 +1,42 @@
-import { stream } from 'exceljs';
+import { stream, Style, Workbook } from 'exceljs';
 import { isNil, isString, merge } from 'lodash';
 
 import { parseAddress, positionToAddress } from '../helpers/excel.helper';
-import { Cell, CellFormat, CellPosition, Workbook, Worksheet } from '../types';
+import { Cell, CellFormat, CellPosition, Worksheet } from '../types';
+import * as os from 'os';
+import * as path from 'path';
+export type ExcelCursorOptions = {
+  filename?: string;
+  workbook?: stream.xlsx.WorkbookWriter | Workbook;
+  sheetName?: string;
+  isStream?: boolean;
+};
 
 export class ExcelCursor {
-  private workbook: stream.xlsx.WorkbookWriter;
+  private workbook: stream.xlsx.WorkbookWriter | Workbook;
   private worksheet: Worksheet;
   private position: CellPosition = { row: 1, col: 1 };
   private lastRow = 1;
   private lastCol = 1;
 
-  constructor(workbook: stream.xlsx.WorkbookWriter, sheetName?: string) {
-    this.workbook = workbook;
+  constructor(options?: ExcelCursorOptions) {
+    const { workbook, sheetName, filename, isStream } = options ?? {};
+    this.workbook = new Workbook();
+
+    if (workbook) {
+      this.workbook = workbook;
+    } else if (isStream) {
+      this.workbook = new stream.xlsx.WorkbookWriter({
+        filename: filename || path.join(os.tmpdir(), `excel-cursor-stream-${Date.now()}.xlsx`),
+        useStyles: true,
+        useSharedStrings: true,
+      });
+    }
+
+    // Reset position and tracking
+    this.position = { row: 1, col: 1 };
+    this.lastRow = 1;
+    this.lastCol = 1;
 
     if (sheetName && this.workbook.getWorksheet(sheetName)) {
       this.worksheet = this.workbook.getWorksheet(sheetName);
@@ -164,7 +188,7 @@ export class ExcelCursor {
   }
 
   // Format ô hiện tại hoặc ô có địa chỉ bất kỳ
-  formatCell(format: any, address?: string): ExcelCursor {
+  formatCell(format: Partial<Style>, address?: string): ExcelCursor {
     const cell = this.getCell(address);
 
     if (!cell.style) {
@@ -307,7 +331,9 @@ export class ExcelCursor {
   }
 
   async commit(): Promise<void> {
-    await this.workbook.commit();
+    if (this.workbook instanceof stream.xlsx.WorkbookWriter) {
+      await this.workbook.commit();
+    }
   }
 
   // Method hỗ trợ tạo vùng từ vị trí hiện tại với n hàng và m cột
@@ -327,7 +353,7 @@ export class ExcelCursor {
   }
 
   // Áp dụng style cho vùng
-  applyStyleToRange(format: CellFormat, startAddress: string, endAddress: string): ExcelCursor {
+  applyStyleToRange(format: Partial<Style>, startAddress: string, endAddress: string): ExcelCursor {
     const startPos = this.parseAddress(startAddress);
     const endPos = this.parseAddress(endAddress);
 

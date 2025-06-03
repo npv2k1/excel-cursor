@@ -9,7 +9,10 @@ async function basicExample() {
     useSharedStrings: true,
   };
   const workbook = new stream.xlsx.WorkbookWriter(options);
-  const cursor = new ExcelCursor(workbook, 'Basic Example');
+  const cursor = new ExcelCursor({
+    workbook,
+    sheetName: 'Basic Data Input',
+  });
 
   cursor
     .move('A1')
@@ -32,7 +35,10 @@ async function formattingExample() {
     useSharedStrings: true,
   };
   const workbook = new stream.xlsx.WorkbookWriter(options);
-  const cursor = new ExcelCursor(workbook, 'Formatting');
+  const cursor = new ExcelCursor({
+    workbook,
+    sheetName: 'Formatting Example',
+  });
 
   cursor
     .move('A1')
@@ -40,7 +46,7 @@ async function formattingExample() {
     .formatCell({
       font: { bold: true, size: 14 },
       alignment: { horizontal: 'center' },
-      fill: { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FF90CAF9' } }
+      fill: { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FF90CAF9' } },
     })
     .nextRow(2)
     .setData('Bold Text')
@@ -63,7 +69,10 @@ async function formulasExample() {
     useSharedStrings: true,
   };
   const workbook = new stream.xlsx.WorkbookWriter(options);
-  const cursor = new ExcelCursor(workbook, 'Formulas');
+  const cursor = new ExcelCursor({
+    workbook,
+    sheetName: 'Formulas and Comments',
+  });
 
   // Set up some numbers
   cursor

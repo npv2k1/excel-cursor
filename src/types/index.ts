@@ -1,4 +1,4 @@
-import { Cell, Column, Row, Workbook, Worksheet } from 'exceljs';
+import { Cell, Column, Row, Worksheet } from 'exceljs';
 
 export interface CellPosition {
   row: number;
@@ -34,4 +34,4 @@ export interface CellFormat {
   numFmt?: string;
 }
 
-export type { Cell, Column, Row, Workbook, Worksheet };
+export type { Cell, Column, Row, Worksheet };

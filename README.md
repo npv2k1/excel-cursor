@@ -122,7 +122,7 @@ This project is licensed under the MIT License - see the [LICENSE](LICENSE) file
 
 ## Author
 
-Nguyen Van A - [@nguyenvana](https://github.com/nguyenvana)
+Pham Van Nguyen - [@npv2k1](https://github.com/npv2k1)
 
 ## Support
 

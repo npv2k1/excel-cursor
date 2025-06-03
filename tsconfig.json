@@ -1,6 +1,6 @@
 {
   "compilerOptions": {
-    "jsx": "react",
+    // "jsx": "react",
     "module": "CommonJS",
     "target": "es2022",
     "declaration": true,
@@ -12,7 +12,7 @@
     "sourceMap": true,
     "outDir": "./dist",
     "moduleResolution": "node",
-    "baseUrl": "./",
+    "baseUrl": "./src",
     "incremental": true,
     "skipLibCheck": true,
     "strictNullChecks": false,
@@ -27,6 +27,6 @@
   "ts-node": {
     "swc": true
   },
-  "include": ["**/*.ts", "**/*.tsx"],
+  "include": ["src/**/*.ts", "src/**/*.tsx"],
   "exclude": ["node_modules", "dist"]
 }

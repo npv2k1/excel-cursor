@@ -4,6 +4,7 @@ A powerful TypeScript library for easy Excel file manipulation using a cursor-ba
 
 [![npm version](https://badge.fury.io/js/excel-cursor.svg)](https://badge.fury.io/js/excel-cursor)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
+[![Quality Gate Status](https://sonarcloud.io/api/project_badges/measure?project=npv2k1_excel-cursor&metric=alert_status)](https://sonarcloud.io/summary/new_code?id=npv2k1_excel-cursor)
 
 ## Features
 

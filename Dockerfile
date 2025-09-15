@@ -1,4 +1,4 @@
-FROM node:24.1.0-alpine AS builder
+FROM node:24.8.0-alpine AS builder
 RUN apk add --no-cache libc6-compat
 RUN npm i -g pnpm@8.2.0
 
@@ -12,7 +12,7 @@ RUN pnpm install
 COPY . .
 RUN npm run build
 
-FROM node:24.1.0-alpine 
+FROM node:24.8.0-alpine 
 RUN apk add --no-cache libc6-compat
 RUN npm i -g pnpm@8.2.0
 WORKDIR /app

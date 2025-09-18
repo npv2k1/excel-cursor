@@ -352,6 +352,62 @@ export class ExcelCursor {
     return cell.value;
   }
 
+  // Kiểm tra xem ô có chứa công thức không
+  isFormulaCell(address?: string): boolean {
+    const cell = this.getCell(address);
+    return cell.type === 6 || (cell.value && typeof cell.value === 'object' && 'formula' in cell.value);
+  }
+
+  // Lấy công thức từ ô
+  getFormula(address?: string): string | null {
+    const cell = this.getCell(address);
+    if (cell.value && typeof cell.value === 'object' && 'formula' in cell.value) {
+      return (cell.value as any).formula;
+    }
+    return null;
+  }
+
+  // Lấy giá trị đã tính toán từ ô công thức
+  getFormulaCellValue(address?: string): any {
+    const cell = this.getCell(address);
+    if (cell.value && typeof cell.value === 'object') {
+      const cellValue = cell.value as any;
+      // Nếu ô có kết quả đã tính toán, trả về kết quả đó
+      if ('result' in cellValue && cellValue.result !== undefined) {
+        return cellValue.result;
+      }
+      // Nếu là công thức không có kết quả, trả về object công thức
+      if ('formula' in cellValue) {
+        return cell.value;
+      }
+    }
+    // Trả về giá trị thô cho ô thường
+    return cell.value;
+  }
+
+  // Xử lý và lấy thông tin chi tiết về ô công thức
+  processFormulaCell(address?: string): {
+    isFormula: boolean;
+    formula: string | null;
+    hasResult: boolean;
+    result: any;
+    value: any;
+  } {
+    const cell = this.getCell(address);
+    const isFormula = this.isFormulaCell(address);
+    const formula = this.getFormula(address);
+    const result = this.getFormulaCellValue(address);
+    const hasResult = isFormula && cell.value && typeof cell.value === 'object' && 'result' in (cell.value as any) && (cell.value as any).result !== undefined;
+
+    return {
+      isFormula,
+      formula,
+      hasResult,
+      result: hasResult ? (cell.value as any).result : null,
+      value: cell.value,
+    };
+  }
+
   // Áp dụng style cho vùng
   applyStyleToRange(format: Partial<Style>, startAddress: string, endAddress: string): ExcelCursor {
     const startPos = this.parseAddress(startAddress);

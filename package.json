@@ -40,6 +40,8 @@
   "license": "MIT",
   "dependencies": {
     "exceljs": "^4.4.0",
+    "formulajs": "^1.0.8",
+    "hot-formula-parser": "^4.0.0",
     "lodash": "^4.17.21"
   },
   "devDependencies": {

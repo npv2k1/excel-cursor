@@ -3,6 +3,7 @@ import { isNil, isString, merge } from 'lodash';
 
 import { parseAddress, positionToAddress } from '../helpers/excel.helper';
 import { Cell, CellFormat, CellPosition, Worksheet } from '../types';
+import { FormulaEngine } from '../utils/formula-engine';
 import * as os from 'os';
 import * as path from 'path';
 export type ExcelCursorOptions = {
@@ -18,6 +19,7 @@ export class ExcelCursor {
   private position: CellPosition = { row: 1, col: 1 };
   private lastRow = 1;
   private lastCol = 1;
+  private formulaEngine: FormulaEngine;
 
   constructor(options?: ExcelCursorOptions) {
     const { workbook, sheetName, filename, isStream } = options ?? {};
@@ -45,6 +47,9 @@ export class ExcelCursor {
     } else {
       this.worksheet = this.workbook.addWorksheet('Sheet1');
     }
+
+    // Initialize formula engine
+    this.formulaEngine = new FormulaEngine(this.worksheet);
   }
 
   getWorkbook(): any {
@@ -406,6 +411,77 @@ export class ExcelCursor {
       result: hasResult ? (cell.value as any).result : null,
       value: cell.value,
     };
+  }
+
+  // Tính toán giá trị của công thức
+  calculateFormula(formula: string): { result: any; error: string | null } {
+    return this.formulaEngine.evaluateFormula(formula);
+  }
+
+  // Tính toán và cập nhật giá trị của ô công thức
+  calculateAndUpdateFormulaCell(address?: string): ExcelCursor {
+    const cell = this.getCell(address);
+    
+    if (this.isFormulaCell(address)) {
+      const formula = this.getFormula(address);
+      if (formula) {
+        const calculation = this.calculateFormula(formula);
+        
+        if (calculation.error === null) {
+          // Update the cell with the calculated result
+          const cellValue = cell.value as any;
+          cell.value = { ...cellValue, result: calculation.result };
+        }
+      }
+    }
+    
+    return this;
+  }
+
+  // Lấy giá trị đã tính toán từ ô công thức (tính toán nếu chưa có)
+  getCalculatedValue(address?: string): any {
+    const cell = this.getCell(address);
+    
+    if (this.isFormulaCell(address)) {
+      const cellValue = cell.value as any;
+      
+      // If already has calculated result, return it
+      if ('result' in cellValue && cellValue.result !== undefined) {
+        return cellValue.result;
+      }
+      
+      // Calculate the formula
+      const formula = this.getFormula(address);
+      if (formula) {
+        const calculation = this.calculateFormula(formula);
+        
+        if (calculation.error === null) {
+          // Cache the result in the cell by updating the value object
+          cell.value = { ...cellValue, result: calculation.result };
+          return calculation.result;
+        } else {
+          // Return error if calculation failed
+          return `#ERROR: ${calculation.error}`;
+        }
+      }
+    }
+    
+    // Return raw value for non-formula cells
+    return cell.value;
+  }
+
+  // Tính toán tất cả các công thức trong worksheet
+  calculateAllFormulas(): ExcelCursor {
+    this.worksheet.eachRow((row, rowNumber) => {
+      row.eachCell((cell, colNumber) => {
+        const address = this.positionToAddress({ row: rowNumber, col: colNumber });
+        if (this.isFormulaCell(address)) {
+          this.calculateAndUpdateFormulaCell(address);
+        }
+      });
+    });
+    
+    return this;
   }
 
   // Áp dụng style cho vùng

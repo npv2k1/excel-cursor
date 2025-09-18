@@ -77,3 +77,6 @@ export function processFormulaCell(cell: Cell): {
     value: cell.value,
   };
 }
+
+// Export the formula engine
+export { FormulaEngine } from './formula-engine';

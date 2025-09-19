@@ -155,9 +155,28 @@ export class FormulaEngine {
       const { row, col } = parseAddress(cellAddress);
       const cell = this.worksheet.getRow(row).getCell(col);
       
-      // If cell has a formula, try to get its result, otherwise return raw value
-      if (cell.value && typeof cell.value === 'object' && 'result' in (cell.value as any)) {
-        return (cell.value as any).result;
+      // If cell has a formula, check if it has a cached result
+      if (cell.value && typeof cell.value === 'object' && 'formula' in (cell.value as any)) {
+        const cellValue = cell.value as any;
+        
+        // If already has cached result, return it
+        if ('result' in cellValue && cellValue.result !== undefined) {
+          return cellValue.result;
+        }
+        
+        // If it's a formula without cached result, calculate it recursively
+        const formula = cellValue.formula;
+        if (formula) {
+          const calculation = this.evaluateFormula(formula);
+          if (calculation.error === null) {
+            // Cache the result in the cell
+            cellValue.result = calculation.result;
+            return calculation.result;
+          }
+        }
+        
+        // If calculation failed, return 0
+        return 0;
       }
       
       return cell.value || 0;
@@ -177,10 +196,32 @@ export class FormulaEngine {
       for (let col = startPos.col; col <= endPos.col; col++) {
         const cell = this.worksheet.getRow(row).getCell(col);
         
-        // Get the actual value or result
+        // Get the actual value or result, calculating formulas if needed
         let value = cell.value;
-        if (value && typeof value === 'object' && 'result' in (value as any)) {
-          value = (value as any).result;
+        
+        // If cell has a formula, check if it has a cached result
+        if (value && typeof value === 'object' && 'formula' in (value as any)) {
+          const cellValue = value as any;
+          
+          // If already has cached result, use it
+          if ('result' in cellValue && cellValue.result !== undefined) {
+            value = cellValue.result;
+          } else {
+            // If it's a formula without cached result, calculate it recursively
+            const formula = cellValue.formula;
+            if (formula) {
+              const calculation = this.evaluateFormula(formula);
+              if (calculation.error === null) {
+                // Cache the result in the cell
+                cellValue.result = calculation.result;
+                value = calculation.result;
+              } else {
+                value = 0;
+              }
+            } else {
+              value = 0;
+            }
+          }
         }
         
         values.push(value || 0);

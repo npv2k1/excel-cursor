@@ -1,11 +1,12 @@
 import { Cell, Worksheet } from 'exceljs';
-import { parseAddress } from '../helpers/excel.helper';
+import { parseAddress, positionToAddress } from '../helpers/excel.helper';
 
 /**
  * Simple formula evaluation engine for basic Excel formulas
  */
 export class FormulaEngine {
   private worksheet: Worksheet;
+  private calculatingCells: Set<string> = new Set(); // To prevent infinite recursion
 
   constructor(worksheet: Worksheet) {
     this.worksheet = worksheet;
@@ -152,6 +153,11 @@ export class FormulaEngine {
 
   private getCellValue(cellAddress: string): any {
     try {
+      // Prevent infinite recursion
+      if (this.calculatingCells.has(cellAddress)) {
+        return 0; // Return 0 for circular references
+      }
+
       const { row, col } = parseAddress(cellAddress);
       const cell = this.worksheet.getRow(row).getCell(col);
       
@@ -164,15 +170,23 @@ export class FormulaEngine {
           return cellValue.result;
         }
         
-        // If it's a formula without cached result, calculate it recursively
-        const formula = cellValue.formula;
-        if (formula) {
-          const calculation = this.evaluateFormula(formula);
-          if (calculation.error === null) {
-            // Cache the result in the cell
-            cellValue.result = calculation.result;
-            return calculation.result;
+        // Mark this cell as being calculated to prevent circular references
+        this.calculatingCells.add(cellAddress);
+        
+        try {
+          // If it's a formula without cached result, calculate it recursively
+          const formula = cellValue.formula;
+          if (formula) {
+            const calculation = this.evaluateFormula(formula);
+            if (calculation.error === null) {
+              // Cache the result in the cell
+              cellValue.result = calculation.result;
+              return calculation.result;
+            }
           }
+        } finally {
+          // Always remove from calculating set
+          this.calculatingCells.delete(cellAddress);
         }
         
         // If calculation failed, return 0
@@ -181,6 +195,7 @@ export class FormulaEngine {
       
       return cell.value || 0;
     } catch (error) {
+      this.calculatingCells.delete(cellAddress);
       return 0;
     }
   }
@@ -195,6 +210,7 @@ export class FormulaEngine {
     for (let row = startPos.row; row <= endPos.row; row++) {
       for (let col = startPos.col; col <= endPos.col; col++) {
         const cell = this.worksheet.getRow(row).getCell(col);
+        const cellAddress = positionToAddress(row, col);
         
         // Get the actual value or result, calculating formulas if needed
         let value = cell.value;
@@ -207,19 +223,30 @@ export class FormulaEngine {
           if ('result' in cellValue && cellValue.result !== undefined) {
             value = cellValue.result;
           } else {
-            // If it's a formula without cached result, calculate it recursively
-            const formula = cellValue.formula;
-            if (formula) {
-              const calculation = this.evaluateFormula(formula);
-              if (calculation.error === null) {
-                // Cache the result in the cell
-                cellValue.result = calculation.result;
-                value = calculation.result;
-              } else {
-                value = 0;
+            // Prevent infinite recursion
+            if (!this.calculatingCells.has(cellAddress)) {
+              this.calculatingCells.add(cellAddress);
+              
+              try {
+                // If it's a formula without cached result, calculate it recursively
+                const formula = cellValue.formula;
+                if (formula) {
+                  const calculation = this.evaluateFormula(formula);
+                  if (calculation.error === null) {
+                    // Cache the result in the cell
+                    cellValue.result = calculation.result;
+                    value = calculation.result;
+                  } else {
+                    value = 0;
+                  }
+                } else {
+                  value = 0;
+                }
+              } finally {
+                this.calculatingCells.delete(cellAddress);
               }
             } else {
-              value = 0;
+              value = 0; // Circular reference
             }
           }
         }

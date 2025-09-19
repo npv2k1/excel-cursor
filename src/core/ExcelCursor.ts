@@ -441,6 +441,7 @@ export class ExcelCursor {
   // Lấy giá trị đã tính toán từ ô công thức (tính toán nếu chưa có)
   getCalculatedValue(address?: string): any {
     const cell = this.getCell(address);
+    const cellAddress = address || this.getCurrentAddress();
     
     if (this.isFormulaCell(address)) {
       const cellValue = cell.value as any;
@@ -450,9 +451,21 @@ export class ExcelCursor {
         return cellValue.result;
       }
       
-      // Calculate the formula
+      // Calculate the formula and ensure all dependencies are calculated
       const formula = this.getFormula(address);
       if (formula) {
+        // First, ensure all dependencies are calculated
+        this.calculateFormulasRecursively([cellAddress]);
+        
+        // Now get the calculated result
+        const updatedCell = this.getCell(address);
+        const updatedCellValue = updatedCell.value as any;
+        
+        if ('result' in updatedCellValue && updatedCellValue.result !== undefined) {
+          return updatedCellValue.result;
+        }
+        
+        // If still no result, calculate directly
         const calculation = this.calculateFormula(formula);
         
         if (calculation.error === null) {
@@ -482,6 +495,49 @@ export class ExcelCursor {
     });
     
     return this;
+  }
+
+  // Đảm bảo tất cả công thức phụ thuộc được tính toán đệ quy
+  calculateFormulasRecursively(addresses: string[]): ExcelCursor {
+    const processed = new Set<string>();
+    const toProcess = [...addresses];
+    
+    while (toProcess.length > 0) {
+      const address = toProcess.shift()!;
+      
+      if (processed.has(address)) {
+        continue;
+      }
+      
+      processed.add(address);
+      
+      if (this.isFormulaCell(address)) {
+        const formula = this.getFormula(address);
+        if (formula) {
+          // Extract cell references from the formula
+          const cellReferences = this.extractCellReferences(formula);
+          
+          // Add dependent cells to processing queue
+          for (const ref of cellReferences) {
+            if (!processed.has(ref)) {
+              toProcess.unshift(ref); // Process dependencies first
+            }
+          }
+          
+          // Calculate this cell
+          this.calculateAndUpdateFormulaCell(address);
+        }
+      }
+    }
+    
+    return this;
+  }
+
+  // Trích xuất tham chiếu ô từ công thức
+  private extractCellReferences(formula: string): string[] {
+    const cellRefPattern = /[A-Z]+[0-9]+/g;
+    const matches = formula.match(cellRefPattern) || [];
+    return [...new Set(matches)]; // Remove duplicates
   }
 
   // Áp dụng style cho vùng

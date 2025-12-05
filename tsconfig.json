@@ -1,6 +1,5 @@
 {
   "compilerOptions": {
-    // "jsx": "react",
     "module": "CommonJS",
     "target": "es2022",
     "declaration": true,
@@ -23,9 +22,6 @@
     "paths": {
       "@/*": ["src/*"]
     }
-  },
-  "ts-node": {
-    "swc": true
   },
   "include": ["src/**/*.ts", "src/**/*.tsx"],
   "exclude": ["node_modules", "dist"]

@@ -3,6 +3,7 @@ import { isNil, isString, merge } from 'lodash';
 
 import { parseAddress, positionToAddress } from '../helpers/excel.helper';
 import { Cell, CellFormat, CellPosition, Worksheet } from '../types';
+import { FormulaEngine } from '../utils/formula-engine';
 import * as os from 'os';
 import * as path from 'path';
 export type ExcelCursorOptions = {
@@ -18,6 +19,7 @@ export class ExcelCursor {
   private position: CellPosition = { row: 1, col: 1 };
   private lastRow = 1;
   private lastCol = 1;
+  private formulaEngine: FormulaEngine;
 
   constructor(options?: ExcelCursorOptions) {
     const { workbook, sheetName, filename, isStream } = options ?? {};
@@ -45,6 +47,9 @@ export class ExcelCursor {
     } else {
       this.worksheet = this.workbook.addWorksheet('Sheet1');
     }
+
+    // Initialize formula engine
+    this.formulaEngine = new FormulaEngine(this.worksheet);
   }
 
   getWorkbook(): any {
@@ -350,6 +355,189 @@ export class ExcelCursor {
   getCellValue(address?: string): any {
     const cell = this.getCell(address);
     return cell.value;
+  }
+
+  // Kiểm tra xem ô có chứa công thức không
+  isFormulaCell(address?: string): boolean {
+    const cell = this.getCell(address);
+    return cell.type === 6 || (cell.value && typeof cell.value === 'object' && 'formula' in cell.value);
+  }
+
+  // Lấy công thức từ ô
+  getFormula(address?: string): string | null {
+    const cell = this.getCell(address);
+    if (cell.value && typeof cell.value === 'object' && 'formula' in cell.value) {
+      return (cell.value as any).formula;
+    }
+    return null;
+  }
+
+  // Lấy giá trị đã tính toán từ ô công thức
+  getFormulaCellValue(address?: string): any {
+    const cell = this.getCell(address);
+    if (cell.value && typeof cell.value === 'object') {
+      const cellValue = cell.value as any;
+      // Nếu ô có kết quả đã tính toán, trả về kết quả đó
+      if ('result' in cellValue && cellValue.result !== undefined) {
+        return cellValue.result;
+      }
+      // Nếu là công thức không có kết quả, trả về object công thức
+      if ('formula' in cellValue) {
+        return cell.value;
+      }
+    }
+    // Trả về giá trị thô cho ô thường
+    return cell.value;
+  }
+
+  // Xử lý và lấy thông tin chi tiết về ô công thức
+  processFormulaCell(address?: string): {
+    isFormula: boolean;
+    formula: string | null;
+    hasResult: boolean;
+    result: any;
+    value: any;
+  } {
+    const cell = this.getCell(address);
+    const isFormula = this.isFormulaCell(address);
+    const formula = this.getFormula(address);
+    const result = this.getFormulaCellValue(address);
+    const hasResult = isFormula && cell.value && typeof cell.value === 'object' && 'result' in (cell.value as any) && (cell.value as any).result !== undefined;
+
+    return {
+      isFormula,
+      formula,
+      hasResult,
+      result: hasResult ? (cell.value as any).result : null,
+      value: cell.value,
+    };
+  }
+
+  // Tính toán giá trị của công thức
+  calculateFormula(formula: string): { result: any; error: string | null } {
+    return this.formulaEngine.evaluateFormula(formula);
+  }
+
+  // Tính toán và cập nhật giá trị của ô công thức
+  calculateAndUpdateFormulaCell(address?: string): ExcelCursor {
+    const cell = this.getCell(address);
+    
+    if (this.isFormulaCell(address)) {
+      const formula = this.getFormula(address);
+      if (formula) {
+        const calculation = this.calculateFormula(formula);
+        
+        if (calculation.error === null) {
+          // Update the cell with the calculated result
+          const cellValue = cell.value as any;
+          cell.value = { ...cellValue, result: calculation.result };
+        }
+      }
+    }
+    
+    return this;
+  }
+
+  // Lấy giá trị đã tính toán từ ô công thức (tính toán nếu chưa có)
+  getCalculatedValue(address?: string): any {
+    const cell = this.getCell(address);
+    const cellAddress = address || this.getCurrentAddress();
+    
+    if (this.isFormulaCell(address)) {
+      const cellValue = cell.value as any;
+      
+      // If already has calculated result, return it
+      if ('result' in cellValue && cellValue.result !== undefined) {
+        return cellValue.result;
+      }
+      
+      // Calculate the formula and ensure all dependencies are calculated
+      const formula = this.getFormula(address);
+      if (formula) {
+        // First, ensure all dependencies are calculated
+        this.calculateFormulasRecursively([cellAddress]);
+        
+        // Now get the calculated result
+        const updatedCell = this.getCell(address);
+        const updatedCellValue = updatedCell.value as any;
+        
+        if ('result' in updatedCellValue && updatedCellValue.result !== undefined) {
+          return updatedCellValue.result;
+        }
+        
+        // If still no result, calculate directly
+        const calculation = this.calculateFormula(formula);
+        
+        if (calculation.error === null) {
+          // Cache the result in the cell by updating the value object
+          cell.value = { ...cellValue, result: calculation.result };
+          return calculation.result;
+        } else {
+          // Return error if calculation failed
+          return `#ERROR: ${calculation.error}`;
+        }
+      }
+    }
+    
+    // Return raw value for non-formula cells
+    return cell.value;
+  }
+
+  // Tính toán tất cả các công thức trong worksheet
+  calculateAllFormulas(): ExcelCursor {
+    this.worksheet.eachRow((row, rowNumber) => {
+      row.eachCell((cell, colNumber) => {
+        const address = this.positionToAddress({ row: rowNumber, col: colNumber });
+        if (this.isFormulaCell(address)) {
+          this.calculateAndUpdateFormulaCell(address);
+        }
+      });
+    });
+    
+    return this;
+  }
+
+  // Đảm bảo tất cả công thức phụ thuộc được tính toán đệ quy
+  calculateFormulasRecursively(addresses: string[]): ExcelCursor {
+    const processed = new Set<string>();
+    const toProcess = [...addresses];
+    
+    while (toProcess.length > 0) {
+      const address = toProcess.shift()!;
+      
+      if (processed.has(address)) {
+        continue;
+      }
+      
+      processed.add(address);
+      
+      if (this.isFormulaCell(address)) {
+        const formula = this.getFormula(address);
+        if (formula) {
+          // Extract cell references from the formula
+          const cellReferences = this.extractCellReferences(formula);
+          
+          // Add dependent cells to processing queue
+          for (const ref of cellReferences) {
+            if (!processed.has(ref)) {
+              toProcess.unshift(ref); // Process dependencies first
+            }
+          }
+          
+          // Calculate this cell
+          this.calculateAndUpdateFormulaCell(address);
+        }
+      }
+    }
+    
+    return this;
+  }
+
+  // Trích xuất tham chiếu ô từ công thức
+  private extractCellReferences(formula: string): string[] {
+    const cellRefPattern = /[A-Z]+[0-9]+/g;
+    const matches = formula.match(cellRefPattern) || [];
+    return [...new Set(matches)]; // Remove duplicates
   }
 
   // Áp dụng style cho vùng

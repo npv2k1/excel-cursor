@@ -1,6 +1,6 @@
 {
   "name": "excel-cursor",
-  "version": "1.0.1",
+  "version": "1.0.2",
   "description": "A powerful and flexible Excel manipulation library with cursor-based navigation",
   "main": "./dist/cjs/index.js",
   "types": "./dist/esm/index.d.ts",

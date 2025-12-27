@@ -1,15 +1,15 @@
 import { stream, Style, Workbook } from 'exceljs';
 import { isNil, isString, merge } from 'lodash';
 
-import { parseAddress, positionToAddress } from '../helpers/excel.helper';
-import { Cell, CellFormat, CellPosition, Worksheet } from '../types';
 import * as os from 'os';
 import * as path from 'path';
+import { Cell, CellPosition, Worksheet } from '../types';
 export type ExcelCursorOptions = {
   filename?: string;
   workbook?: stream.xlsx.WorkbookWriter | Workbook;
   sheetName?: string;
   isStream?: boolean;
+  isBorderAll?: boolean;
 };
 
 export class ExcelCursor {
@@ -18,10 +18,12 @@ export class ExcelCursor {
   private position: CellPosition = { row: 1, col: 1 };
   private lastRow = 1;
   private lastCol = 1;
+  private options: ExcelCursorOptions = {};
 
   constructor(options?: ExcelCursorOptions) {
     const { workbook, sheetName, filename, isStream } = options ?? {};
     this.workbook = new Workbook();
+    this.options = options || {};
 
     if (workbook) {
       this.workbook = workbook;
@@ -49,6 +51,11 @@ export class ExcelCursor {
 
   getWorkbook(): any {
     return this.workbook;
+  }
+
+  setWorksheet(worksheet: any): ExcelCursor {
+    this.worksheet = worksheet;
+    return this;
   }
 
   // Chuyển đổi địa chỉ cột dạng chữ (A, B, C...) sang số (1, 2, 3...)
@@ -179,12 +186,17 @@ export class ExcelCursor {
 
   // Span n hàng từ vị trí hiện tại hoặc địa chỉ bất kỳ
   rowSpan(n: number, address?: string): ExcelCursor {
-    const startPos = address ? this.parseAddress(address) : this.position;
-    const endRow = startPos.row + n - 1;
+    try {
+      const startPos = address ? this.parseAddress(address) : this.position;
+      const endRow = startPos.row + n - 1;
 
-    this.worksheet.mergeCells(startPos.row, startPos.col, endRow, startPos.col);
+      this.worksheet.mergeCells(startPos.row, startPos.col, endRow, startPos.col);
 
-    return this;
+      return this;
+    } catch (error) {
+      console.error('Error in rowSpan:', address ?? this.getCurrentAddress());
+      return this;
+    }
   }
 
   // Format ô hiện tại hoặc ô có địa chỉ bất kỳ
@@ -412,6 +424,9 @@ export class ExcelCursor {
   private updateLastPosition(position: CellPosition): void {
     this.lastRow = Math.max(this.lastRow, position.row);
     this.lastCol = Math.max(this.lastCol, position.col);
+    if (this.options.isBorderAll) {
+      this.borderAll(this.positionToAddress(position));
+    }
   }
 
   // Get the last row that has data
@@ -441,6 +456,59 @@ export class ExcelCursor {
 
   moveLastCol(): ExcelCursor {
     this.position.col = this.lastCol;
+    return this;
+  }
+
+  // Add row to worksheet and return the row for further manipulation
+  addRow(values: any[]): any {
+    const row = this.worksheet.addRow(values);
+
+    // Update tracking
+    if (values && values.length > 0) {
+      this.lastRow = Math.max(this.lastRow, row.number);
+      this.lastCol = Math.max(this.lastCol, values.length);
+    }
+
+    // Commit the row if using stream writer
+    if (this.workbook instanceof stream.xlsx.WorkbookWriter) {
+      row.commit();
+    }
+
+    return row;
+  }
+
+  // Add multiple rows at once
+  addRows(data: any[][]): any[] {
+    const rows = [];
+    data.forEach((rowData) => {
+      rows.push(this.addRow(rowData));
+    });
+    return rows;
+  }
+
+  formatCellNumber(address?: string, format = '#,##0.00'): ExcelCursor {
+    const cell = this.getCell(address);
+    cell.numFmt = format;
+    return this;
+  }
+
+  borderAll(address?: string): ExcelCursor {
+    const cell = this.getCell(address);
+    cell.border = {
+      top: { style: 'thin' },
+      left: { style: 'thin' },
+      bottom: { style: 'thin' },
+      right: { style: 'thin' },
+    };
+    return this;
+  }
+
+  center(address?: string): ExcelCursor {
+    const cell = this.getCell(address);
+    cell.alignment = {
+      vertical: 'middle',
+      horizontal: 'center',
+    };
     return this;
   }
 }

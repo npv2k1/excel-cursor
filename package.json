@@ -40,7 +40,7 @@
   "license": "MIT",
   "dependencies": {
     "exceljs": "^4.4.0",
-    "lodash": "^4.17.21"
+    "lodash": "^4.17.23"
   },
   "devDependencies": {
     "@types/jest": "28.1.6",

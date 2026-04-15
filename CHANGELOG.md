@@ -7,30 +7,38 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.0.3] - 2026-04-15
+
 ### Added
 
-- Error handling with descriptive error messages
-- Input validation for cell addresses and positions
-- Cell range operations (getRange, setRange)
-- Conditional formatting support
-- Cell comments and notes
-- Auto-sizing columns based on content
-- Worksheet protection options
-- Cell validation rules
-- Support for Excel formulas with type checking
+- Comprehensive unit test suite with 101 tests covering:
+  - ExcelCursor class (68 tests): constructor, navigation, data operations, formatting, merging, sheet operations, tracking, and more
+  - Helper functions (33 tests): column letter/number conversion, address parsing, position conversion
+  - Utility functions (8 tests): createWorkbook and createStreamWorkbook
+
+### Changed
+
+- Improved jest configuration for better test reliability
+- Updated dependencies to latest versions
+
+## [1.0.2] - 2026-04-15
+
+### Added
+
+- New row manipulation and formatting methods
+- Excel helper tool
 
 ### Changed
 
 - Improved TypeScript type definitions
 - Enhanced documentation with more examples
-- Better error messages for invalid operations
-- Optimized performance for large datasets
+
+## [1.0.1] - 2023
 
 ### Fixed
 
-- Edge cases in cell address parsing
-- Memory usage optimizations
-- Validation for merged cells operations
+- Dockerfile vulnerabilities
+- pnpm release CI issues
 
 ## [1.0.0] - 2023
 

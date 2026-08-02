@@ -53,6 +53,7 @@
   ],
   "author": "npv2k1",
   "license": "MIT",
+  "packageManager": "pnpm@10.32.1",
   "repository": {
     "type": "git",
     "url": "git+https://github.com/npv2k1/excel-cursor.git"
@@ -91,5 +92,12 @@
   },
   "peerDependencies": {
     "exceljs": "^4.4.0"
+  },
+  "pnpm": {
+    "overrides": {
+      "brace-expansion@1": "1.1.17",
+      "brace-expansion@2": "2.1.3",
+      "tmp": "0.2.7"
+    }
   }
 }

@@ -1,57 +1,97 @@
-on:
-  push:
-    branches: ['main']
+name: CI
 
-name: Test Release
+on:
+  pull_request:
+  push:
+    branches: [main]
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
 
 jobs:
-  test-release:
-    name: Test Release
+  quality:
+    name: Node ${{ matrix.node-version }}
     runs-on: ubuntu-latest
+    timeout-minutes: 15
+    strategy:
+      fail-fast: false
+      matrix:
+        node-version: [22, 24]
+
     steps:
       - name: Checkout
-        uses: actions/checkout@v3
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
 
-      - name: Pull all submodule
-        run: git submodule update --init --recursive
-
-      - name: Setup Node.js
-        uses: actions/setup-node@v2
+      - name: Set up pnpm
+        uses: pnpm/action-setup@b906affcce14559ad1aafd4ab0e942779e9f58b1 # v4
         with:
-          node-version: "20"
-
-      - name: Setup Git
-        run: |
-          git config user.name '${{secrets.MAINTAINER_NAME}}'
-          git config user.email '${{secrets.MAINTAINER_EMAIL}}'
-
-      - uses: pnpm/action-setup@v2
-        name: Install pnpm
-        id: pnpm-install
-        with:
-          version: 9
+          version: 10.32.1
           run_install: false
 
-      - name: Get pnpm store directory
-        id: pnpm-cache
-        shell: bash
-        run: |
-          echo "STORE_PATH=$(pnpm store path)" >> $GITHUB_OUTPUT
-
-      - uses: actions/cache@v3
-        name: Setup pnpm cache
+      - name: Set up Node.js
+        uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
         with:
-          path: ${{ steps.pnpm-cache.outputs.STORE_PATH }}
-          key: ${{ runner.os }}-pnpm-store-${{ hashFiles('**/pnpm-lock.yaml') }}
-          restore-keys: |
-            ${{ runner.os }}-pnpm-store-
+          node-version: ${{ matrix.node-version }}
+          cache: pnpm
 
       - name: Install dependencies
-        run: pnpm install
+        run: pnpm install --frozen-lockfile
 
-      - name: Build nextjs pages
+      - name: Lint
+        run: pnpm run lint
+
+      - name: Test
+        run: pnpm run test:ci
+
+      - name: Build
         run: pnpm run build
-     
-      - name: Publish dry run
+
+      - name: Audit production dependencies
+        run: pnpm audit --prod --audit-level high
+
+  package:
+    name: Package smoke test
+    needs: quality
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: Checkout
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+
+      - name: Set up pnpm
+        uses: pnpm/action-setup@b906affcce14559ad1aafd4ab0e942779e9f58b1 # v4
+        with:
+          version: 10.32.1
+          run_install: false
+
+      - name: Set up Node.js
+        uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
+        with:
+          node-version: 22
+          cache: pnpm
+
+      - name: Install and build
         run: |
-          npm publish --dry-run
+          pnpm install --frozen-lockfile
+          pnpm run build
+
+      - name: Pack and test public entry points
+        shell: bash
+        run: |
+          set -euo pipefail
+          package_file="$(npm pack --ignore-scripts --json | node -e "let s=''; process.stdin.on('data',d=>s+=d).on('end',()=>process.stdout.write(JSON.parse(s)[0].filename))")"
+          package_path="$PWD/$package_file"
+          consumer="$(mktemp -d)"
+          trap 'rm -rf "$consumer"' EXIT
+          cd "$consumer"
+          npm init -y >/dev/null
+          npm install --ignore-scripts "$package_path"
+          node -e "require('excel-cursor')"
+          node --input-type=module -e "await import('excel-cursor')"
+
+      - name: Verify publish contents
+        run: npm publish --dry-run --ignore-scripts

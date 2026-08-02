@@ -36,9 +36,9 @@
     "lint": "eslint \"{src,tests}/**/*.ts\"",
     "lint:fix": "npm run lint -- --fix",
     "test": "jest",
-    "test:ci": "jest --ci --runInBand",
+    "test:ci": "jest --ci --runInBand --coverage",
     "test:watch": "jest --watch",
-    "test:cov": "jest --coverage",
+    "test:cov": "jest --coverage --runInBand",
     "prepare": "npm run build",
     "package:smoke": "npm run build && node ./scripts/package-smoke.js",
     "example": "ts-node ./example/index.ts"

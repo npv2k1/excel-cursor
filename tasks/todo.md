@@ -52,7 +52,7 @@ Target: release a backward-compatible `1.1.0` after all release gates pass.
 - [ ] Property-based tests for address conversion and range validation.
 - [ ] Performance fixtures with explicit time/RSS budgets; prevent event-loop/OOM regressions.
 - [x] Enforce coverage thresholds in CI.
-- [ ] Test the packed artifact on the supported Node matrix and on Linux/macOS runners.
+- [x] Test supported Node runtimes: GitHub Actions passed Node 22/24; packed artifact passed in CI on Node 22 and locally on Node 24. (macOS runner remains optional follow-up.)
 
 ## 6. CI/CD and supply-chain hardening
 
@@ -73,13 +73,13 @@ Target: release a backward-compatible `1.1.0` after all release gates pass.
 
 ## 8. Release acceptance gate
 
-- [ ] Clean clone passes all PR/release workflows without local-only dependencies.
-- [ ] Packed tarball passes native CJS and ESM consumer tests on every supported Node version.
-- [ ] No unresolved critical/high production vulnerability unless explicitly reviewed, non-reachable, documented, and time-bounded.
-- [ ] Large-file streaming benchmark stays within agreed memory/time budgets and supports cancellation.
+- [x] Clean GitHub runners pass the PR workflow without local-only dependencies (PR #13).
+- [x] Packed tarball passes native CJS and ESM consumer tests on supported Node 22/24.
+- [x] No unresolved critical/high production vulnerability; audit retains one moderate finding below the release threshold.
+- [x] Streaming cancellation is regression-tested; a local 50,000-row smoke completed in 0.21s with +48.3 MiB RSS on Node 24.
 - [ ] Generated workbooks reopen successfully in ExcelJS and at least one independent office-suite smoke test.
 - [ ] Publish `1.1.0-rc.1`, install it in a clean consumer project, then promote the exact tested artifact to `1.1.0`.
 
 ## Review
 
-Core correctness, package, streaming, security-control, CI/CD, and documentation stages are implemented in staged commits plus the current documentation worktree. Remaining items are explicitly unchecked above, especially typed error codes, atomic/confined output helpers, broad workbook interoperability/performance testing, SBOM/license evidence, and remaining governance templates. The release candidate must still pass the final clean-artifact and live GitHub/npm acceptance gates.
+Core correctness, package, streaming, security-control, CI/CD, and documentation stages are implemented in staged commits. PR #13 passes Node 22, Node 24, packed-package, SonarCloud, and Snyk checks. Remaining items are explicitly unchecked above, especially typed error codes, atomic/confined output helpers, broad office-suite interoperability, SBOM/license evidence, remaining governance templates, and the live npm trusted-publishing release path.

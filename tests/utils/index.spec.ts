@@ -1,5 +1,6 @@
+import { stream, Workbook } from 'exceljs';
 import * as fs from 'fs';
-import { Workbook, stream } from 'exceljs';
+
 import { createStreamWorkbook, createWorkbook } from '../../src/utils/index';
 
 describe('utils/index', () => {

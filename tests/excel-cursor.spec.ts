@@ -1,7 +1,6 @@
-import { Workbook, stream } from 'exceljs';
+import { stream, Workbook } from 'exceljs';
+
 import { ExcelCursor } from '../src/core/ExcelCursor';
-import * as fs from 'fs';
-import * as path from 'path';
 
 describe('ExcelCursor', () => {
   describe('Constructor', () => {
@@ -18,6 +17,11 @@ describe('ExcelCursor', () => {
       expect(worksheet).toBeDefined();
     });
 
+    it('should support the legacy workbook plus options signature when workbook is omitted', () => {
+      const cursor = new ExcelCursor(undefined, { sheetName: 'LegacySheet' });
+      expect(cursor.getWorkbook().getWorksheet('LegacySheet')).toBeDefined();
+    });
+
     it('should create a cursor with existing workbook', () => {
       const workbook = new Workbook();
       const cursor = new ExcelCursor({ workbook });
@@ -29,6 +33,15 @@ describe('ExcelCursor', () => {
       workbook.addWorksheet('ExistingSheet');
       const cursor = new ExcelCursor({ workbook, sheetName: 'ExistingSheet' });
       expect(cursor.getWorkbook()).toBe(workbook);
+    });
+
+    it('should reuse an existing default Sheet1', () => {
+      const workbook = new Workbook();
+      workbook.addWorksheet('Sheet1').getCell('C4').value = 'existing';
+      const cursor = new ExcelCursor(workbook);
+      expect(cursor.getCellValue('C4')).toBe('existing');
+      expect(cursor.getLastRow()).toBe(4);
+      expect(cursor.getLastCol()).toBe(3);
     });
 
     it('should create stream workbook when isStream is true', () => {
@@ -89,6 +102,14 @@ describe('ExcelCursor', () => {
       expect(cursor.getCurrentPosition()).toEqual({ row: 5, col: 1 });
     });
 
+    it('should reject invalid or out-of-bounds navigation', () => {
+      expect(() => cursor.moveTo(0, 1)).toThrow();
+      expect(() => cursor.move('XFE1')).toThrow();
+      expect(() => cursor.nextRow(-1)).toThrow('Invalid navigation distance');
+      cursor.move('XFD1');
+      expect(() => cursor.nextCol()).toThrow();
+    });
+
     it('should move to last row', () => {
       cursor.setData('test').setData('test2', 'A5');
       cursor.moveLastRow();
@@ -127,7 +148,7 @@ describe('ExcelCursor', () => {
     it('should set formula', () => {
       cursor.moveTo(1, 1).setData(10).moveTo(1, 2).setData(20).moveTo(1, 3).setFormula('=A1+B1');
       const cell = cursor.getCellValue('C1');
-      expect(cell).toEqual({ formula: '=A1+B1' });
+      expect(cell).toEqual({ formula: 'A1+B1' });
     });
 
     it('should add row', () => {
@@ -232,6 +253,10 @@ describe('ExcelCursor', () => {
       cursor.moveTo(1, 1).rowSpan(3);
       const worksheet = cursor.getWorkbook().getWorksheet('Sheet1');
       expect(() => worksheet.getCell('A1')).not.toThrow();
+    });
+
+    it('should propagate invalid row span errors', () => {
+      expect(() => cursor.rowSpan(0)).toThrow('Invalid row span: 0');
     });
   });
 
@@ -402,6 +427,19 @@ describe('ExcelCursor', () => {
       expect(cursor.getCellValue('E4')).toBe('B1');
       expect(cursor.getCellValue('D5')).toBe('A2');
       expect(cursor.getCellValue('E5')).toBe('B2');
+    });
+
+    it('should copy overlapping ranges from a stable snapshot', () => {
+      cursor.setData('one', 'A1').setData('two', 'B1');
+      cursor.copyRange('A1', 'B1', 'B1');
+      expect(cursor.getCellValue('B1')).toBe('one');
+      expect(cursor.getCellValue('C1')).toBe('two');
+    });
+
+    it('should reject reversed and out-of-bounds ranges', () => {
+      expect(() => cursor.copyRange('B2', 'A1', 'C3')).toThrow('Range end');
+      expect(() => cursor.copyRange('XFD1', 'XFD1', 'XFD2')).not.toThrow();
+      expect(() => cursor.copyRange('XFD1', 'XFD1', 'XFE1')).toThrow();
     });
   });
 

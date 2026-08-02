@@ -24,9 +24,6 @@
       "@/*": ["src/*"]
     }
   },
-  "ts-node": {
-    "swc": true
-  },
   "include": ["src/**/*.ts", "src/**/*.tsx"],
   "exclude": ["node_modules", "dist"]
 }

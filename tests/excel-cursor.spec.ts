@@ -151,6 +151,25 @@ describe('ExcelCursor', () => {
       expect(cell).toEqual({ formula: 'A1+B1' });
     });
 
+    it('should neutralize formula injection when setting untrusted text', () => {
+      cursor
+        .setSafeText('=HYPERLINK("https://example.invalid","click")', 'A1')
+        .setSafeText('+1+1', 'A2')
+        .setSafeText('ordinary text', 'A3')
+        .setSafeText('\t@SUM(A1:A2)', 'A4');
+
+      expect(cursor.getCellValue('A1')).toBe('\'=HYPERLINK("https://example.invalid","click")');
+      expect(cursor.getCellValue('A2')).toBe("'+1+1");
+      expect(cursor.getCellValue('A3')).toBe('ordinary text');
+      expect(cursor.getCellValue('A4')).toBe("'\t@SUM(A1:A2)");
+      expect(() => cursor.setSafeText(123 as any)).toThrow('Safe text value must be a string');
+    });
+
+    it('should expose formula writes as explicitly trusted behavior', () => {
+      cursor.setTrustedFormula('=SUM(A1:A2)', 'A3');
+      expect(cursor.getCellValue('A3')).toEqual({ formula: 'SUM(A1:A2)' });
+    });
+
     it('should add row', () => {
       cursor.addRow(['A', 'B', 'C']);
       expect(cursor.getCellValue('A1')).toBe('A');
@@ -165,6 +184,31 @@ describe('ExcelCursor', () => {
       ]);
       expect(cursor.getCellValue('A1')).toBe('A1');
       expect(cursor.getCellValue('A2')).toBe('A2');
+    });
+
+    it('should reject row batches that exceed configured resource limits', () => {
+      const limited = new ExcelCursor({ maxCells: 3, maxRows: 2, maxCols: 2 });
+      expect(() =>
+        limited.addRows([
+          ['A1', 'B1'],
+          ['A2', 'B2'],
+        ])
+      ).toThrow('Row batch exceeds configured limits');
+      expect(() => limited.addRows([['A', 'B', 'C']])).toThrow(
+        'Row batch exceeds configured limits'
+      );
+    });
+
+    it('should reject invalid resource limit configuration', () => {
+      expect(() => new ExcelCursor({ maxCells: 0 })).toThrow(
+        'maxCells must be a positive safe integer'
+      );
+      expect(() => new ExcelCursor({ maxRows: 1_048_577 })).toThrow(
+        "maxRows cannot exceed Excel's limit"
+      );
+      expect(() => new ExcelCursor({ maxCols: 16_385 })).toThrow(
+        "maxCols cannot exceed Excel's limit"
+      );
     });
 
     it('should insert row', () => {
@@ -233,6 +277,16 @@ describe('ExcelCursor', () => {
       const worksheet = cursor.getWorkbook().getWorksheet('Sheet1');
       expect(worksheet.getCell('A1').style.font?.bold).toBe(true);
       expect(worksheet.getCell('B2').style.font?.bold).toBe(true);
+    });
+
+    it('should reject synchronous ranges that exceed configured limits', () => {
+      const limited = new ExcelCursor({ maxCells: 4, maxRows: 2, maxCols: 2 });
+      expect(() => limited.applyStyleToRange({}, 'A1', 'C2')).toThrow(
+        'Style range exceeds configured limits'
+      );
+      expect(() => limited.copyRange('A1', 'B3', 'D1')).toThrow(
+        'Copy range exceeds configured limits'
+      );
     });
   });
 

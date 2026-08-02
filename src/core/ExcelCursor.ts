@@ -18,7 +18,17 @@ export type ExcelCursorOptions = {
   sheetName?: string;
   isStream?: boolean;
   isBorderAll?: boolean;
+  /** Maximum number of cells a synchronous range or batch operation may touch. */
+  maxCells?: number;
+  /** Maximum number of rows a synchronous range or batch operation may touch. */
+  maxRows?: number;
+  /** Maximum number of columns a synchronous range or batch operation may touch. */
+  maxCols?: number;
 };
+
+const EXCEL_MAX_ROWS = 1_048_576;
+const EXCEL_MAX_COLS = 16_384;
+const DEFAULT_MAX_CELLS = 100_000;
 
 export class ExcelCursor {
   private workbook: stream.xlsx.WorkbookWriter | Workbook;
@@ -45,6 +55,7 @@ export class ExcelCursor {
       : options?.workbook;
     const { sheetName, filename, isStream } = options ?? {};
     this.options = options || {};
+    this.validateResourceLimits();
 
     if (suppliedWorkbook) {
       this.workbook = suppliedWorkbook;
@@ -151,6 +162,16 @@ export class ExcelCursor {
     this.updateLastPosition(position);
 
     return this;
+  }
+
+  /**
+   * Store untrusted input as text, neutralizing values that spreadsheet
+   * applications could otherwise interpret as formulas.
+   */
+  setSafeText(value: string, address?: string): ExcelCursor {
+    if (!isString(value)) throw new TypeError('Safe text value must be a string');
+    const safeValue = /^[\t\r\n]*[=+\-@]/.test(value) ? `'${value}` : value;
+    return this.setData(safeValue, address);
   }
 
   // Di chuyển xuống n hàng
@@ -277,6 +298,12 @@ export class ExcelCursor {
 
   // Thêm công thức cho ô
   setFormula(formula: string, address?: string): ExcelCursor {
+    return this.setTrustedFormula(formula, address);
+  }
+
+  /** Set a formula supplied by a trusted source. Never pass untrusted input here. */
+  setTrustedFormula(formula: string, address?: string): ExcelCursor {
+    if (!isString(formula)) throw new TypeError('Formula must be a string');
     const normalizedFormula = formula.startsWith('=') ? formula.slice(1) : formula;
     if (!normalizedFormula.trim()) throw new Error('Formula cannot be empty');
     const position = address ? this.parseAddress(address) : { ...this.position };
@@ -343,6 +370,11 @@ export class ExcelCursor {
 
   // Lưu workbook
   async saveWorkbook(filepath: string): Promise<void> {
+    if (this.workbook instanceof stream.xlsx.WorkbookWriter) {
+      throw new Error(
+        'saveWorkbook(filepath) is unavailable in streaming mode because the output path is fixed at construction; call commit() or use StreamingExcelWriter'
+      );
+    }
     await this.workbook.xlsx.writeFile(filepath);
   }
 
@@ -376,6 +408,7 @@ export class ExcelCursor {
     const startPos = this.parseAddress(startAddress);
     const endPos = this.parseAddress(endAddress);
     this.assertOrderedRange(startPos, endPos);
+    this.assertOperationSize(startPos, endPos, 'Style range');
 
     for (let row = startPos.row; row <= endPos.row; row++) {
       for (let col = startPos.col; col <= endPos.col; col++) {
@@ -402,6 +435,7 @@ export class ExcelCursor {
     const sourceEndPos = this.parseAddress(sourceEndAddress);
     const targetStartPos = this.parseAddress(targetStartAddress);
     this.assertOrderedRange(sourceStartPos, sourceEndPos);
+    this.assertOperationSize(sourceStartPos, sourceEndPos, 'Copy range');
 
     const rowOffset = targetStartPos.row - sourceStartPos.row;
     const colOffset = targetStartPos.col - sourceStartPos.col;
@@ -464,6 +498,40 @@ export class ExcelCursor {
     }
   }
 
+  private validateResourceLimits(): void {
+    const limits: Array<[string, number]> = [
+      ['maxCells', this.options.maxCells ?? DEFAULT_MAX_CELLS],
+      ['maxRows', this.options.maxRows ?? EXCEL_MAX_ROWS],
+      ['maxCols', this.options.maxCols ?? EXCEL_MAX_COLS],
+    ];
+    for (const [name, value] of limits) {
+      if (!Number.isSafeInteger(value) || value < 1) {
+        throw new Error(`${name} must be a positive safe integer`);
+      }
+    }
+    if ((this.options.maxRows ?? EXCEL_MAX_ROWS) > EXCEL_MAX_ROWS) {
+      throw new Error(`maxRows cannot exceed Excel's limit of ${EXCEL_MAX_ROWS}`);
+    }
+    if ((this.options.maxCols ?? EXCEL_MAX_COLS) > EXCEL_MAX_COLS) {
+      throw new Error(`maxCols cannot exceed Excel's limit of ${EXCEL_MAX_COLS}`);
+    }
+  }
+
+  private assertOperationSize(start: CellPosition, end: CellPosition, operation: string): void {
+    const rows = end.row - start.row + 1;
+    const cols = end.col - start.col + 1;
+    const cells = rows * cols;
+    const maxRows = this.options.maxRows ?? EXCEL_MAX_ROWS;
+    const maxCols = this.options.maxCols ?? EXCEL_MAX_COLS;
+    const maxCells = this.options.maxCells ?? DEFAULT_MAX_CELLS;
+    if (rows > maxRows || cols > maxCols || cells > maxCells) {
+      throw new Error(
+        `${operation} exceeds configured limits: ${rows} rows, ${cols} columns, ${cells} cells ` +
+          `(maxRows=${maxRows}, maxCols=${maxCols}, maxCells=${maxCells})`
+      );
+    }
+  }
+
   private syncExtentFromWorksheet(): void {
     // rowCount/columnCount are the highest occupied indexes. The corresponding
     // `actual*Count` values count non-empty rows/columns and therefore produce
@@ -522,6 +590,10 @@ export class ExcelCursor {
 
   // Add multiple rows at once
   addRows(data: any[][]): any[] {
+    const maxCols = data.reduce((maximum, row) => Math.max(maximum, row.length), 0);
+    if (data.length > 0 && maxCols > 0) {
+      this.assertOperationSize({ row: 1, col: 1 }, { row: data.length, col: maxCols }, 'Row batch');
+    }
     const rows = [];
     data.forEach((rowData) => {
       rows.push(this.addRow(rowData));

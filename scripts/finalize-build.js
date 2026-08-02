@@ -19,20 +19,20 @@ function visit(directory) {
       ['lodash', 'lodash'],
     ]) {
       rewritten = rewritten.replace(
-        new RegExp(`import \\{([^}]+)\\} from ['\"]${packageName}['\"];?`, 'g'),
+        new RegExp(`import {([^}]+)} from ['"]${packageName}['"];?`, 'g'),
         (_match, names) =>
           `import ${binding} from '${packageName}';\nconst { ${names.trim()} } = ${binding};`,
       );
     }
     rewritten = rewritten.replace(
-      /(\b(?:from\s+|import\s*\(|export\s+[^'\"]*?from\s+)[\"'])(\.{1,2}\/[^'\"]+)([\"'])/g,
-      (match, prefix, specifier, suffix) => {
+      /(['"])(\.{1,2}\/[^'"]+)\1/g,
+      (match, quote, specifier) => {
         if (/\.(?:js|mjs|cjs|json|node)$/.test(specifier)) return match;
         const absoluteTarget = path.resolve(path.dirname(filename), specifier);
         const target = fs.existsSync(`${absoluteTarget}.js`)
           ? `${specifier}.js`
           : `${specifier}/index.js`;
-        return `${prefix}${target}${suffix}`;
+        return `${quote}${target}${quote}`;
       },
     );
     fs.writeFileSync(filename, rewritten);

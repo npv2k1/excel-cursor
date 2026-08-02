@@ -47,7 +47,7 @@ jobs:
 
       - name: Install, test, and build
         run: |
-          pnpm install --frozen-lockfile
+          pnpm install --frozen-lockfile --ignore-scripts
           pnpm run lint
           pnpm run test:ci
           pnpm run build

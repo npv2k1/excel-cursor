@@ -31,12 +31,12 @@ const EXCEL_MAX_COLS = 16_384;
 const DEFAULT_MAX_CELLS = 100_000;
 
 export class ExcelCursor {
-  private workbook: stream.xlsx.WorkbookWriter | Workbook;
+  private readonly workbook: stream.xlsx.WorkbookWriter | Workbook;
   private worksheet: Worksheet;
   private position: CellPosition = { row: 1, col: 1 };
   private lastRow = 1;
   private lastCol = 1;
-  private options: ExcelCursorOptions = {};
+  private readonly options: ExcelCursorOptions;
 
   constructor(options?: ExcelCursorOptions);
   constructor(workbook?: WorkbookLike, options?: ExcelCursorOptions);
@@ -302,7 +302,7 @@ export class ExcelCursor {
   }
 
   /** Set a formula supplied by a trusted source. Never pass untrusted input here. */
-  setTrustedFormula(formula: string, address?: string): ExcelCursor {
+  setTrustedFormula(formula: string, address?: string): this {
     if (!isString(formula)) throw new TypeError('Formula must be a string');
     const normalizedFormula = formula.startsWith('=') ? formula.slice(1) : formula;
     if (!normalizedFormula.trim()) throw new Error('Formula cannot be empty');
@@ -371,7 +371,7 @@ export class ExcelCursor {
   // Lưu workbook
   async saveWorkbook(filepath: string): Promise<void> {
     if (this.workbook instanceof stream.xlsx.WorkbookWriter) {
-      throw new Error(
+      throw new TypeError(
         'saveWorkbook(filepath) is unavailable in streaming mode because the output path is fixed at construction; call commit() or use StreamingExcelWriter'
       );
     }

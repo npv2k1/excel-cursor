@@ -52,7 +52,7 @@ jobs:
 
       - name: Install, test, and build
         run: |
-          pnpm install --frozen-lockfile
+          pnpm install --frozen-lockfile --ignore-scripts
           pnpm run lint
           pnpm run test:ci
           pnpm run build
@@ -96,4 +96,4 @@ jobs:
           fi
 
       - name: Publish with provenance
-        run: npm install --global npm@11.5.1 && npm publish "${{ steps.artifact.outputs.path }}" --access public --provenance --tag "${{ steps.dist-tag.outputs.name }}"
+        run: npm install --global --ignore-scripts npm@11.5.1 && npm publish "${{ steps.artifact.outputs.path }}" --access public --provenance --tag "${{ steps.dist-tag.outputs.name }}"

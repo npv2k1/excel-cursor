@@ -78,7 +78,7 @@ export class StreamingExcelWriter {
   }
 
   commit(): Promise<void> {
-    if (this.commitPromise) return this.commitPromise;
+    if (this.commitPromise !== undefined) return this.commitPromise;
     this.assertOpen();
     this.state = 'committing';
     this.commitPromise = this.workbook.commit().then(

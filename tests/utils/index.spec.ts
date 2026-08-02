@@ -18,7 +18,7 @@ describe('utils/index', () => {
 
     it('should create workbook with no worksheets by default', () => {
       const workbook = createWorkbook();
-      expect(workbook.worksheets.length).toBe(0);
+      expect(workbook.worksheets).toHaveLength(0);
     });
   });
 

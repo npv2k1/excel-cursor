@@ -18,7 +18,9 @@ export function colLetterToNumber(colLetter: string): number {
   let result = 0;
   const normalized = colLetter.toUpperCase();
   for (let i = 0; i < normalized.length; i++) {
-    result = result * 26 + (normalized.charCodeAt(i) - 64);
+    const codePoint = normalized.codePointAt(i);
+    if (codePoint === undefined) throw new Error(`Invalid Excel column: ${colLetter}`);
+    result = result * 26 + (codePoint - 64);
   }
   assertIntegerInRange(result, 1, EXCEL_MAX_COLUMNS, 'column');
   return result;

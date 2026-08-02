@@ -10,6 +10,7 @@ const { compilerOptions } = {
 
 /** @type {import('jest').Config} */
 module.exports = {
+  watchman: false,
   moduleFileExtensions: ['js', 'json', 'ts'],
   // collectCoverage: true,
   coverageProvider: 'v8',

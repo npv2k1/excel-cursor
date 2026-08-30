@@ -1,5 +1,6 @@
+import { stream, Workbook } from 'exceljs';
 import * as fs from 'fs';
-import { Workbook, stream } from 'exceljs';
+
 import { createStreamWorkbook, createWorkbook } from '../../src/utils/index';
 
 describe('utils/index', () => {
@@ -17,7 +18,7 @@ describe('utils/index', () => {
 
     it('should create workbook with no worksheets by default', () => {
       const workbook = createWorkbook();
-      expect(workbook.worksheets.length).toBe(0);
+      expect(workbook.worksheets).toHaveLength(0);
     });
   });
 

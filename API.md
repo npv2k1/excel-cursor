@@ -1,190 +1,104 @@
-# Excel Cursor API Documentation
+# Excel Cursor API
 
-## Table of Contents
+## `ExcelCursor`
 
-- [Installation](#installation)
-- [Basic Usage](#basic-usage)
-- [API Reference](#api-reference)
-  - [Constructor](#constructor)
-  - [Navigation Methods](#navigation-methods)
-  - [Data Operations](#data-operations)
-  - [Formatting](#formatting)
-  - [Cell Operations](#cell-operations)
-  - [Worksheet Operations](#worksheet-operations)
+An in-memory/random-access cursor over an ExcelJS workbook.
 
-## Installation
-
-```bash
-npm install excel-cursor
-# or
-yarn add excel-cursor
-# or
-pnpm add excel-cursor
+```ts
+new ExcelCursor(options?: ExcelCursorOptions)
+new ExcelCursor(workbook?: Workbook | stream.xlsx.WorkbookWriter, options?: ExcelCursorOptions)
 ```
 
-## Basic Usage
+### Options
 
-```typescript
-import { Workbook } from 'exceljs';
-import { ExcelCursor } from 'excel-cursor';
+| Option | Default | Description |
+| --- | --- | --- |
+| `workbook` | new workbook | Alternative to the first constructor argument. |
+| `sheetName` | `Sheet1` | Reuse or create the selected worksheet. |
+| `filename` | temporary path | Compatibility streaming output path. |
+| `isStream` | `false` | Create an ExcelJS streaming workbook. Prefer `StreamingExcelWriter`. |
+| `isBorderAll` | `false` | Add a thin border when tracked data is written. |
+| `maxCells` | `100000` | Maximum cells touched by one synchronous range/batch operation. |
+| `maxRows` | `1048576` | Maximum rows in one synchronous range/batch operation. |
+| `maxCols` | `16384` | Maximum columns in one synchronous range/batch operation. |
 
-const workbook = new Workbook();
-const cursor = new ExcelCursor(workbook);
+Limits must be positive safe integers and cannot exceed Excel's dimensions.
 
-// Basic operations
-cursor.move('A1').setData('Hello').nextRow().setData('World');
+### Navigation and position
 
-// Save the workbook
-await workbook.xlsx.writeFile('output.xlsx');
+- `move(address)`, `moveTo(row, col)`
+- `nextRow(n?)`, `prevRow(n?)`, `nextCol(n?)`, `prevCol(n?)`
+- `getCurrentAddress()`, `getCurrentPosition()`
+- `moveLastRow()`, `moveLastCol()`
+- `getLastRow()`, `getLastCol()`, `getLastColAddress()`, `getLastCellAddress()`
+- `goBackToFirstCollumn()` — legacy misspelling retained for compatibility
+
+Addresses are case-insensitive but must be within `A1:XFD1048576`. Invalid coordinates throw.
+
+### Values and formulas
+
+- `setData(value, address?)` — assign an ExcelJS cell value; trusted-input API.
+- `setSafeText(value, address?)` — store untrusted string input as text and neutralize formula prefixes.
+- `getCellValue(address?)` — return the ExcelJS cell value.
+- `setTrustedFormula(formula, address?)` — set a trusted formula. Leading `=` is normalized away.
+- `setFormula(formula, address?)` — compatibility alias for `setTrustedFormula`.
+- `addComment(text, author?, address?)`
+
+Formula APIs do not sanitize external links and must not receive user-controlled expressions.
+
+### Layout and formatting
+
+- `formatCell(style, address?)`
+- `applyStyleToRange(style, startAddress, endAddress)`
+- `formatCellNumber(address?, format?)`, `borderAll(address?)`, `center(address?)`
+- `setColWidth(width, columnOrAddress?)`, `setRowHeight(height, rowOrAddress?)`
+- `colSpan(count, address?)`, `rowSpan(count, address?)`
+- `addConditionalFormatting(range, type, rules)`
+- `createRegion(rows, cols)`
+
+Range operations reject reversed ranges and operations exceeding configured limits.
+
+### Rows, ranges, and worksheets
+
+- `insertRow(values?)`, `deleteRow()`, `addRow(values)`, `addRows(rows)`
+- `copyRange(sourceStart, sourceEnd, targetStart)` — snapshots values and styles first, so overlapping copies are safe.
+- `createSheet(name)`, `switchSheet(name)`, `setWorksheet(worksheet)`
+- `getWorkbook()`
+
+`copyRange` copies cell values and styles only. It does not promise to copy comments, merges, row/column dimensions, or conditional formatting.
+
+### Persistence
+
+- `saveWorkbook(filepath)` writes an in-memory workbook.
+- `commit()` commits a compatibility streaming workbook; it is a no-op for in-memory workbooks.
+
+`saveWorkbook()` throws in streaming mode because its destination was fixed when the writer was created.
+
+## `StreamingExcelWriter`
+
+Append-only writer intended for large exports.
+
+```ts
+new StreamingExcelWriter({
+  filename: string,
+  sheetName?: string,
+  maxRows?: number,
+  signal?: AbortSignal,
+  onProgress?: ({ rowsWritten, maxRows }) => void,
+  useSharedStrings?: boolean,
+  useStyles?: boolean,
+})
 ```
 
-## API Reference
+- `addRow(values): this` immediately commits one row.
+- `addRows(iterable | asyncIterable): Promise<number>` processes rows sequentially and returns the total written.
+- `getRowsWritten(): number`
+- `commit(): Promise<void>` finalizes the workbook; repeated calls return the same promise.
 
-### Constructor
+Adding rows after commit starts, exceeding `maxRows`, aborting, or a failed underlying write throws. Cancellation is cooperative between rows and does not remove an already-created partial file.
 
-```typescript
-new ExcelCursor(workbook: Workbook, sheetName?: string)
-```
+## Error handling and security
 
-Creates a new Excel cursor instance.
+The current public contract uses standard `Error` and `TypeError`, with descriptive messages. Do not branch business logic on message text. Wrap library calls at the application boundary and treat any rejected write/commit as a failed export.
 
-- `workbook`: ExcelJS Workbook instance
-- `sheetName`: Optional worksheet name (defaults to 'Sheet1')
-
-### Navigation Methods
-
-#### move(address: string): ExcelCursor
-
-Moves the cursor to a specific cell address (e.g., 'A1', 'B2').
-
-#### moveTo(row: number, col: number): ExcelCursor
-
-Moves the cursor to specific row and column coordinates.
-
-#### nextRow(n = 1): ExcelCursor
-
-Moves the cursor down by n rows.
-
-#### prevRow(n = 1): ExcelCursor
-
-Moves the cursor up by n rows.
-
-#### nextCol(n = 1): ExcelCursor
-
-Moves the cursor right by n columns.
-
-#### prevCol(n = 1): ExcelCursor
-
-Moves the cursor left by n columns.
-
-### Data Operations
-
-#### setData(data: any, address?: string): ExcelCursor
-
-Sets data in the current cell or at a specific address.
-
-#### getData(address?: string): any
-
-Gets data from the current cell or a specific address.
-
-### Formatting
-
-#### formatCell(format: CellFormat, address?: string): ExcelCursor
-
-Applies formatting to the current cell or a specific address.
-
-```typescript
-interface CellFormat {
-  font?: {
-    bold?: boolean;
-    italic?: boolean;
-    size?: number;
-    color?: string;
-  };
-  alignment?: {
-    vertical?: 'top' | 'middle' | 'bottom';
-    horizontal?: 'left' | 'center' | 'right';
-  };
-  fill?: {
-    type?: 'pattern';
-    pattern?: 'solid';
-    fgColor?: string;
-  };
-  border?: {
-    top?: { style?: string; color?: string };
-    left?: { style?: string; color?: string };
-    bottom?: { style?: string; color?: string };
-    right?: { style?: string; color?: string };
-  };
-}
-```
-
-### Cell Operations
-
-#### colSpan(n: number, address?: string): ExcelCursor
-
-Merges n columns from the current position or specified address.
-
-#### rowSpan(n: number, address?: string): ExcelCursor
-
-Merges n rows from the current position or specified address.
-
-#### setColWidth(width: number, colOrAddress?: number | string): ExcelCursor
-
-Sets the width of the current or specified column.
-
-#### setRowHeight(height: number, row?: number): ExcelCursor
-
-Sets the height of the current or specified row.
-
-### Worksheet Operations
-
-#### getWorkbook(): Workbook
-
-Returns the current workbook instance.
-
-#### getCurrentAddress(): string
-
-Returns the current cell address (e.g., 'A1').
-
-#### getCurrentPosition(): CellPosition
-
-Returns the current position as {row: number, col: number}.
-
-## Error Handling
-
-The library throws descriptive errors for invalid operations:
-
-- Invalid cell addresses
-- Out of range operations
-- Invalid formatting options
-- Worksheet operation errors
-
-## Best Practices
-
-1. Chain operations for cleaner code:
-
-```typescript
-cursor
-  .move('A1')
-  .setData('Header')
-  .formatCell({ font: { bold: true } })
-  .nextRow();
-```
-
-2. Use position tracking for dynamic operations:
-
-```typescript
-const currentPos = cursor.getCurrentPosition();
-cursor.moveTo(currentPos.row + 1, currentPos.col);
-```
-
-3. Handle errors appropriately:
-
-```typescript
-try {
-  cursor.move('InvalidAddress');
-} catch (error) {
-  console.error('Invalid cell address:', error.message);
-}
-```
+Paths, formulas, hyperlinks, and raw ExcelJS values are trust boundaries. See [SECURITY.md](SECURITY.md) and the README before processing untrusted workloads.

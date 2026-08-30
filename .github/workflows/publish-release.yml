@@ -1,77 +1,99 @@
 name: Publish Release
+
 on:
   release:
-    types:
-      - published
+    types: [published]
+
+permissions:
+  contents: read
+  id-token: write
+
+concurrency:
+  group: npm-${{ github.event.release.tag_name }}
+  cancel-in-progress: false
 
 jobs:
   publish-release:
-    name: Publish Release
+    name: Publish verified package to npm
+    if: ${{ !github.event.release.draft }}
     runs-on: ubuntu-latest
+    timeout-minutes: 15
+    environment: npm
     steps:
-      - name: Checkout
-        uses: actions/checkout@v3
-
-      - name: Pull all submodule
-        run: git submodule update --init --recursive
-
-      - name: Setup Node.js
-        uses: actions/setup-node@v4
+      - name: Checkout released tag
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
         with:
-          node-version: "20"
+          ref: ${{ github.event.release.tag_name }}
 
-      - name: Setup Git
-        run: |
-          git config user.name '${{secrets.MAINTAINER_NAME}}'
-          git config user.email '${{secrets.MAINTAINER_EMAIL}}'
-
-      - name: Update package.json
-        run: |
-          # Extract the version from the git tag (e.g., "v1.0.0")
-          version=$(echo "${{ github.event.release.tag_name }}" | sed -e 's/^refs\/tags\/v//')
-
-          # Update the package.json version using Node.js script
-          node - <<EOF
-          const fs = require('fs');
-          const packageJson = JSON.parse(fs.readFileSync('package.json'));
-          packageJson.version = "$version";
-          fs.writeFileSync('package.json', JSON.stringify(packageJson, null, 2));
-          EOF
-
-      - uses: pnpm/action-setup@v4
-        name: Install pnpm
-        id: pnpm-install
+      - name: Set up pnpm
+        uses: pnpm/action-setup@b906affcce14559ad1aafd4ab0e942779e9f58b1 # v4
         with:
-          version: 9
+          version: 10.32.1
           run_install: false
 
-      - name: Get pnpm store directory
-        id: pnpm-cache
+      - name: Set up Node.js for trusted publishing
+        uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
+        with:
+          node-version: 22
+          cache: pnpm
+          registry-url: https://registry.npmjs.org
+
+      - name: Verify release tag matches package version
+        shell: bash
+        env:
+          TAG_NAME: ${{ github.event.release.tag_name }}
+        run: |
+          set -euo pipefail
+          package_version="$(node -p "require('./package.json').version")"
+          test "$TAG_NAME" = "v$package_version" || {
+            echo "Release tag $TAG_NAME does not match package.json version v$package_version" >&2
+            exit 1
+          }
+
+      - name: Install, test, and build
+        run: |
+          pnpm install --frozen-lockfile --ignore-scripts
+          pnpm run lint
+          pnpm run test:ci
+          pnpm run build
+          pnpm audit --prod --audit-level high
+
+      - name: Download and smoke-test release artifact
+        id: artifact
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+          TAG_NAME: ${{ github.event.release.tag_name }}
+        run: |
+          set -euo pipefail
+          mkdir release-artifact
+          gh release download "$TAG_NAME" --pattern '*.tgz' --dir release-artifact
+          mapfile -t artifacts < <(find release-artifact -maxdepth 1 -type f -name '*.tgz')
+          test "${#artifacts[@]}" -eq 1 || {
+            echo "Expected exactly one .tgz release artifact, found ${#artifacts[@]}" >&2
+            exit 1
+          }
+          artifact="$PWD/${artifacts[0]}"
+          consumer="$(mktemp -d)"
+          trap 'rm -rf "$consumer"' EXIT
+          cd "$consumer"
+          npm init -y >/dev/null
+          npm install --ignore-scripts "$artifact"
+          node -e "require('excel-cursor')"
+          node --input-type=module -e "await import('excel-cursor')"
+          echo "path=$artifact" >> "$GITHUB_OUTPUT"
+
+      - name: Select npm distribution tag
+        id: dist-tag
         shell: bash
         run: |
-          echo "STORE_PATH=$(pnpm store path)" >> $GITHUB_OUTPUT
-
-      - uses: actions/cache@v3
-        name: Setup pnpm cache
-        with:
-          path: ${{ steps.pnpm-cache.outputs.STORE_PATH }}
-          key: ${{ runner.os }}-pnpm-store-${{ hashFiles('**/pnpm-lock.yaml') }}
-          restore-keys: |
-            ${{ runner.os }}-pnpm-store-
-
-      - name: Install dependencies
-        run: pnpm install
-
-      - name: Build package
-        run: pnpm run build
-
-      - name: Publish
-        run: |
-          npm config set //registry.npmjs.org/:_authToken ${NPM_TOKEN}
-          if [[ "${{ github.event.release.tag_name }}" == *"beta"* ]]; then
-            npm publish --tag beta
+          set -euo pipefail
+          prerelease="$(node -p "require('./package.json').version.split('-')[1] || ''")"
+          if [[ -z "$prerelease" ]]; then
+            echo "name=latest" >> "$GITHUB_OUTPUT"
           else
-            npm publish
+            echo "name=${prerelease%%.*}" >> "$GITHUB_OUTPUT"
           fi
-        env:
-          NPM_TOKEN: ${{ secrets.NPM_TOKEN }}
+
+      - name: Publish with provenance
+        run: npm install --global --ignore-scripts npm@11.5.1 && npm publish "${{ steps.artifact.outputs.path }}" --access public --provenance --tag "${{ steps.dist-tag.outputs.name }}"

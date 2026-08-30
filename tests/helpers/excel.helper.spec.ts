@@ -126,6 +126,19 @@ describe('excel.helper', () => {
     it('should throw error for address with special characters', () => {
       expect(() => parseAddress('A@1')).toThrow('Invalid cell address: A@1');
     });
+
+    it.each(['fooA1bar', 'A0', 'XFE1', 'A1048577'])(
+      'should reject out-of-bounds or partial address %s',
+      (address) => {
+        expect(() => parseAddress(address)).toThrow();
+      }
+    );
+
+    it('should accept lowercase addresses and normalize on round trip', () => {
+      const position = parseAddress('aa10');
+      expect(position).toEqual({ row: 10, col: 27 });
+      expect(positionToAddress(position.row, position.col)).toBe('AA10');
+    });
   });
 
   describe('positionToAddress', () => {
